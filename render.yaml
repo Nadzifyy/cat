@@ -2,5 +2,5 @@ services:
   - type: web
     name: cat-platformer
     runtime: python
-    buildCommand: pip install pygbag && python -m pygbag --build .
+    buildCommand: pip install pygbag && python -m pygbag --template custom.tmpl --build .
     staticPublishPath: ./build/web

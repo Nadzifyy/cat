@@ -2,4 +2,4 @@
 set -e
 
 pip install pygbag
-python -m pygbag --build .
+python -m pygbag --template custom.tmpl --build .
