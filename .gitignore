@@ -1,4 +1,4 @@
 __pycache__/
 *.pyc
-build/
+build/web-cache/
 save_data.json
