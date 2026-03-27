@@ -148,7 +148,7 @@ config = {
     _sdl2 : "canvas",
     user_canvas : 0,
     user_canvas_managed : 0,
-    gui_divider : 2,
+    gui_divider : 1,
     ume_block : {{cookiecutter.ume_block}},
     can_close : {{cookiecutter.can_close}},
     archive : "{{cookiecutter.archive}}",
@@ -156,7 +156,7 @@ config = {
     cdn : "{{cookiecutter.cdn}}",
     autorun : {{cookiecutter.autorun}},
     PYBUILD : "{{cookiecutter.PYBUILD}}",
-    fb_ar   :  1.77,
+    fb_ar   :  1.7307,
     fb_width : "{{cookiecutter.width}}",
     fb_height : "{{cookiecutter.height}}"
 }
@@ -220,21 +220,11 @@ function show_infobox() {
         /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
         canvas.emscripten {
             border: 0px none;
-            background-color: black;
-            max-width: 100vw;
-            max-height: 100vh;
-            width: auto;
-            height: auto;
-            aspect-ratio: 900 / 520;
+            background-color: transparent;
             z-index: 5;
-
             padding: 0;
-            margin: auto;
-
+            margin: 0;
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
         }
 
         body {
@@ -378,9 +368,29 @@ frameborder="1"
         console.warn("TODO: panda3d canvas monitor", self, ecw, ech)
     }
 
+    function fitCanvas() {
+        var c = document.getElementById('canvas');
+        if (!c) return;
+        var ar = 900 / 520;
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+        var w, h;
+        if (vw / vh > ar) {
+            h = vh;
+            w = vh * ar;
+        } else {
+            w = vw;
+            h = vw / ar;
+        }
+        c.style.width = Math.floor(w) + 'px';
+        c.style.height = Math.floor(h) + 'px';
+        c.style.left = Math.floor((vw - w) / 2) + 'px';
+        c.style.top = Math.floor((vh - h) / 2) + 'px';
+    }
+    window.addEventListener('resize', fitCanvas);
+    window.window_resize = fitCanvas;
+
     async function custom_onload(debug_hidden) {
-        // this is called before anything python is loaded
-        // make your js customization here
         console.log(__FILE__, "custom_onload")
 
         pyconsole.hidden = debug_hidden
@@ -389,6 +399,7 @@ frameborder="1"
         info.hidden = debug_hidden
         box.hidden =  debug_hidden
 
+        fitCanvas()
         show_infobox()
     }
 
