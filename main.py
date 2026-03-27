@@ -959,6 +959,26 @@ def _web_tone(freq: float, dur: float, vol: float = 0.22) -> list[int]:
             for i in range(n)]
 
 
+def _web_melody_note(freq: float, dur: float, vol: float = 0.08) -> list[int]:
+    n = int(WEB_SR * dur)
+    attack = int(n * 0.08)
+    release = int(n * 0.25)
+    out: list[int] = []
+    for i in range(n):
+        t = i / WEB_SR
+        if i < attack:
+            env = i / attack
+        elif i > n - release:
+            env = (n - i) / release
+        else:
+            env = 1.0
+        wave = (math.sin(2 * math.pi * freq * t) * 0.7 +
+                math.sin(2 * math.pi * freq * 2 * t) * 0.2 +
+                math.sin(2 * math.pi * freq * 3 * t) * 0.1)
+        out.append(int(wave * vol * env * 32767))
+    return out
+
+
 def create_web_sound_queue() -> list[tuple[str, object]]:
     """Return (name, callable) pairs that each generate one short sound."""
     t = _web_tone
@@ -1070,7 +1090,7 @@ def _build_web_bgm(notes: list[tuple[float, float]], vol: float) -> pygame.mixer
         if freq <= 0:
             samples.extend([0] * int(WEB_SR * dur))
         else:
-            samples.extend(_web_tone(freq, dur, vol))
+            samples.extend(_web_melody_note(freq, dur, vol))
     return _make_sound(samples)
 
 
@@ -1102,15 +1122,27 @@ def create_bgm_game() -> pygame.mixer.Sound:
 
 def create_web_bgm_menu() -> pygame.mixer.Sound:
     return _build_web_bgm([
-        (392, 0.22), (494, 0.22), (587, 0.25), (659, 0.3), (0, 0.2),
-        (659, 0.22), (587, 0.22), (494, 0.22), (392, 0.3), (0, 0.2),
+        (523, 0.45), (587, 0.45), (659, 0.45), (784, 0.9),
+        (659, 0.45), (587, 0.45), (523, 0.9),
+        (392, 0.45), (440, 0.45), (523, 0.45), (587, 0.9),
+        (523, 0.45), (440, 0.45), (392, 0.9),
+        (523, 0.45), (659, 0.45), (784, 0.45), (880, 0.9),
+        (784, 0.45), (659, 0.45), (523, 0.9),
+        (440, 0.45), (523, 0.45), (587, 0.45), (523, 0.9),
+        (0, 0.45),
     ], 0.06)
 
 
 def create_web_bgm_game() -> pygame.mixer.Sound:
     return _build_web_bgm([
-        (523, 0.2), (659, 0.2), (784, 0.2), (659, 0.2),
-        (587, 0.2), (523, 0.2), (440, 0.3), (0, 0.15),
+        (523, 0.3), (587, 0.3), (659, 0.3), (784, 0.3),
+        (880, 0.6), (784, 0.3), (659, 0.6),
+        (587, 0.3), (523, 0.3), (440, 0.3), (523, 0.3),
+        (587, 0.6), (0, 0.3),
+        (659, 0.3), (784, 0.3), (880, 0.3), (784, 0.3),
+        (659, 0.3), (587, 0.3), (523, 0.6),
+        (440, 0.3), (392, 0.3), (440, 0.3), (523, 0.3),
+        (587, 0.6), (523, 0.6), (0, 0.3),
     ], 0.05)
 
 # ---------------------------------------------------------------------------
