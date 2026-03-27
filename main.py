@@ -411,14 +411,37 @@ class Obstacle:
             pygame.draw.rect(surface, OBSTACLE_COL, r, border_radius=4)
             pygame.draw.rect(surface, (100, 78, 54),
                              (r.x + 4, r.y + 4, r.w - 8, 4), border_radius=2)
+            # Extra web-friendly contrast so block vs bush/spike is obvious.
+            if IS_WEB:
+                pygame.draw.line(surface, (70, 55, 40),
+                                 (r.x + 6, r.y + r.h - 10),
+                                 (r.x + r.w - 6, r.y + r.h - 10), 3)
         elif self.kind == OBS_SPIKE:
             pts = [(r.x, r.y + r.h), (r.x + r.w // 2, r.y), (r.x + r.w, r.y + r.h)]
             pygame.draw.polygon(surface, SPIKE_COL, pts)
             pygame.draw.polygon(surface, (130, 130, 135), pts, 2)
+            if IS_WEB:
+                # Dark base makes the triangle read better on small screens.
+                pygame.draw.rect(surface, (90, 90, 95),
+                                 (r.x, r.y + r.h - 6, r.w, 6), border_radius=2)
         elif self.kind == OBS_BUSH:
             pygame.draw.ellipse(surface, BUSH_COL, r)
             pygame.draw.ellipse(surface, (60, 130, 50), r, 2)
-            if not IS_WEB:
+            if IS_WEB:
+                # Fewer leaves than desktop, but enough to visually distinguish from blocks.
+                leaf_col = (95, 165, 75)
+                lx0 = r.x + int(r.w * 0.25)
+                lx1 = r.x + int(r.w * 0.50)
+                lx2 = r.x + int(r.w * 0.75)
+                ly = r.y + int(r.h * 0.35)
+                for (lx, rad) in [(lx0, 3), (lx1, 4), (lx2, 3)]:
+                    pygame.draw.circle(surface, leaf_col, (lx, ly), rad)
+                    pygame.draw.circle(surface, leaf_col, (lx - 6, ly + 6), max(2, rad - 1))
+                # Tiny berries for clarity.
+                berry_col = (35, 110, 45)
+                pygame.draw.circle(surface, berry_col, (r.x + r.w // 2 - 6, r.y + r.h // 2), 2)
+                pygame.draw.circle(surface, berry_col, (r.x + r.w // 2 + 6, r.y + r.h // 2 + 2), 2)
+            else:
                 for lx in range(r.x + 6, r.x + r.w - 6, 8):
                     pygame.draw.circle(surface, (95, 165, 75), (lx, r.y + r.h // 3), 3)
         elif self.kind == OBS_BIRD:
@@ -432,6 +455,10 @@ class Obstacle:
             pygame.draw.circle(surface, (220, 180, 40), (cx + 8, cy - 2), 2)
             pygame.draw.polygon(surface, (200, 140, 40),
                                 [(cx + 11, cy), (cx + 16, cy + 1), (cx + 11, cy + 2)])
+            if IS_WEB:
+                # Make the bird read as "bird" at small sizes.
+                pygame.draw.line(surface, (240, 210, 90),
+                                 (cx - 2, cy + 2), (cx + 10, cy + 6), 2)
 
     def off_screen(self) -> bool:
         return self.x + self.w < 0
