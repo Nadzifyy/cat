@@ -181,10 +181,10 @@ function show_infobox() {
     <title>cat</title>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="viewport" content="height=device-height, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
 
     <link rel="icon" type="image/png" href="favicon.png" sizes="16x16">
@@ -225,6 +225,10 @@ function show_infobox() {
             padding: 0;
             margin: 0;
             position: absolute;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
 
         body {
@@ -232,6 +236,14 @@ function show_infobox() {
             margin: 0;
             padding: none;
             background-color: #222222;
+            overflow: hidden;
+            touch-action: none;
+            -webkit-overflow-scrolling: auto;
+        }
+
+        html {
+            overflow: hidden;
+            touch-action: none;
         }
 
         .topright{
@@ -389,6 +401,14 @@ frameborder="1"
     }
     window.addEventListener('resize', fitCanvas);
     window.window_resize = fitCanvas;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var c = document.getElementById('canvas');
+        if (c) {
+            c.addEventListener('touchmove', function(e) { e.preventDefault(); }, {passive: false});
+        }
+        document.body.addEventListener('touchmove', function(e) { e.preventDefault(); }, {passive: false});
+    });
 
     async function custom_onload(debug_hidden) {
         console.log(__FILE__, "custom_onload")
