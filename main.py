@@ -34,6 +34,10 @@ SAMPLE_RATE = 22050
 OBSTACLES_PER_LEVEL = 6
 MAX_LIVES = 3
 SAVE_FILE = Path(__file__).parent / "save_data.json"
+TOUCH_LEFT_RECT = pygame.Rect(18, HEIGHT - 90, 64, 64)
+TOUCH_RIGHT_RECT = pygame.Rect(92, HEIGHT - 90, 64, 64)
+TOUCH_JUMP_RECT = pygame.Rect(WIDTH - 92, HEIGHT - 96, 72, 72)
+TOUCH_PAUSE_RECT = pygame.Rect(WIDTH - 56, 12, 40, 40)
 
 # Colors
 SKY = (186, 228, 255)
@@ -798,9 +802,13 @@ def draw_start_menu(screen: pygame.Surface, font: pygame.font.Font,
 
     controls = small.render("A/D move  |  Space jump  |  ESC pause", True, (80, 80, 80))
     screen.blit(controls, (WIDTH // 2 - controls.get_width() // 2, HEIGHT // 2 + 78))
+    if IS_WEB:
+        tap_hint = small.render("Tap anywhere to start (mobile supported)", True, (80, 80, 80))
+        screen.blit(tap_hint, (WIDTH // 2 - tap_hint.get_width() // 2, HEIGHT // 2 + 100))
 
     mice_t = small.render(f"Mice: {save_data['total_mice']}", True, MOUSE_DARK)
-    screen.blit(mice_t, (WIDTH // 2 - mice_t.get_width() // 2, HEIGHT // 2 + 106))
+    mice_t_y = HEIGHT // 2 + (126 if IS_WEB else 106)
+    screen.blit(mice_t, (WIDTH // 2 - mice_t.get_width() // 2, mice_t_y))
 
 
 def draw_skin_shop(screen: pygame.Surface, font: pygame.font.Font,
@@ -877,6 +885,33 @@ def draw_level_banner(screen: pygame.Surface, font: pygame.font.Font,
     text = font.render(f"Level {level}  —  Get ready!", True, GOLD)
     text.set_alpha(int(255 * progress))
     screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - 22))
+
+
+def draw_touch_controls(screen: pygame.Surface, active: set[str]) -> None:
+    if not IS_WEB:
+        return
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    base = (30, 30, 40, 80)
+    on = (255, 255, 255, 120)
+    pygame.draw.circle(overlay, on if "left" in active else base,
+                       TOUCH_LEFT_RECT.center, TOUCH_LEFT_RECT.w // 2)
+    pygame.draw.circle(overlay, on if "right" in active else base,
+                       TOUCH_RIGHT_RECT.center, TOUCH_RIGHT_RECT.w // 2)
+    pygame.draw.circle(overlay, on if "jump" in active else (80, 130, 255, 110),
+                       TOUCH_JUMP_RECT.center, TOUCH_JUMP_RECT.w // 2)
+    pygame.draw.rect(overlay, on if "pause" in active else base, TOUCH_PAUSE_RECT, border_radius=8)
+
+    lx, ly = TOUCH_LEFT_RECT.center
+    rx, ry = TOUCH_RIGHT_RECT.center
+    jx, jy = TOUCH_JUMP_RECT.center
+    pygame.draw.polygon(overlay, WHITE, [(lx + 8, ly - 12), (lx - 10, ly), (lx + 8, ly + 12)])
+    pygame.draw.polygon(overlay, WHITE, [(rx - 8, ry - 12), (rx + 10, ry), (rx - 8, ry + 12)])
+    pygame.draw.line(overlay, WHITE, (jx - 10, jy), (jx + 10, jy), 4)
+    pygame.draw.line(overlay, WHITE, (TOUCH_PAUSE_RECT.x + 14, TOUCH_PAUSE_RECT.y + 9),
+                     (TOUCH_PAUSE_RECT.x + 14, TOUCH_PAUSE_RECT.y + 31), 4)
+    pygame.draw.line(overlay, WHITE, (TOUCH_PAUSE_RECT.x + 26, TOUCH_PAUSE_RECT.y + 9),
+                     (TOUCH_PAUSE_RECT.x + 26, TOUCH_PAUSE_RECT.y + 31), 4)
+    screen.blit(overlay, (0, 0))
 
 # ---------------------------------------------------------------------------
 # Sound effects
@@ -1001,6 +1036,16 @@ def _build_bgm(notes: list[tuple[float, float]], vol: float) -> pygame.mixer.Sou
     return _make_sound(samples)
 
 
+def _build_web_bgm(notes: list[tuple[float, float]], vol: float) -> pygame.mixer.Sound:
+    samples: list[int] = []
+    for freq, dur in notes:
+        if freq <= 0:
+            samples.extend([0] * int(WEB_SR * dur))
+        else:
+            samples.extend(_web_tone(freq, dur, vol))
+    return _make_sound(samples)
+
+
 def create_bgm_menu() -> pygame.mixer.Sound:
     return _build_bgm([
         (523, 0.45), (587, 0.45), (659, 0.45), (784, 0.9),
@@ -1026,21 +1071,38 @@ def create_bgm_game() -> pygame.mixer.Sound:
         (587, 0.6), (523, 0.6), (0, 0.3),
     ], 0.05)
 
+
+def create_web_bgm_menu() -> pygame.mixer.Sound:
+    return _build_web_bgm([
+        (392, 0.22), (494, 0.22), (587, 0.25), (659, 0.3), (0, 0.2),
+        (659, 0.22), (587, 0.22), (494, 0.22), (392, 0.3), (0, 0.2),
+    ], 0.06)
+
+
+def create_web_bgm_game() -> pygame.mixer.Sound:
+    return _build_web_bgm([
+        (523, 0.2), (659, 0.2), (784, 0.2), (659, 0.2),
+        (587, 0.2), (523, 0.2), (440, 0.3), (0, 0.15),
+    ], 0.05)
+
 # ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
 async def main() -> None:
+    mixer_ready = False
     if IS_WEB:
         pygame.init()
         try:
             pygame.mixer.init(WEB_SR, -16, 1, 512)
             _web_sound_queue = create_web_sound_queue()
+            mixer_ready = True
         except Exception:
             _web_sound_queue = []
     else:
         pygame.mixer.pre_init(SAMPLE_RATE, -16, 1, 512)
         pygame.init()
+        mixer_ready = True
 
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Cat Platformer")
@@ -1049,17 +1111,22 @@ async def main() -> None:
     small = pygame.font.SysFont("consolas", 18)
     hud_font = pygame.font.SysFont("consolas", 22)
 
-    if IS_WEB:
-        sfx: dict = _SilentDict()
-        bgm_menu: object = _NoSound()
-        bgm_game: object = _NoSound()
+    if not mixer_ready:
+        sfx = _SilentDict()
+        bgm_menu = _NoSound()
+        bgm_game = _NoSound()
     else:
         pygame.mixer.set_num_channels(16)
-        sfx = create_sounds()
-        bgm_menu = create_bgm_menu()
-        bgm_game = create_bgm_game()
+        if IS_WEB:
+            sfx = _SilentDict()
+            bgm_menu = create_web_bgm_menu()
+            bgm_game = create_web_bgm_game()
+        else:
+            sfx = create_sounds()
+            bgm_menu = create_bgm_menu()
+            bgm_game = create_bgm_game()
 
-    bgm_channel = _NoSound() if IS_WEB else pygame.mixer.Channel(0)
+    bgm_channel = pygame.mixer.Channel(0) if mixer_ready else _NoSound()
 
     def play_bgm(track: object) -> None:
         try:
@@ -1078,6 +1145,9 @@ async def main() -> None:
     running = True
     tick = 0
     sparkles: list[Sparkle] = []
+    touch_move_left = False
+    touch_move_right = False
+    touch_active: set[str] = set()
 
     play_bgm(bgm_menu)
 
@@ -1085,6 +1155,14 @@ async def main() -> None:
         dt = clock.tick(FPS) / 1000.0
         tick += 1
         jump_pressed = False
+        touch_move_left = False
+        touch_move_right = False
+        touch_active.clear()
+
+        def pointer_xy(evt) -> tuple[int, int]:
+            if hasattr(evt, "x") and isinstance(evt.x, float) and evt.x <= 1.0:
+                return int(evt.x * WIDTH), int(evt.y * HEIGHT)
+            return int(getattr(evt, "x", 0)), int(getattr(evt, "y", 0))
 
         if IS_WEB and _web_sound_queue:
             try:
@@ -1164,6 +1242,39 @@ async def main() -> None:
                 if event.key in (pygame.K_SPACE, pygame.K_w, pygame.K_UP):
                     jump_pressed = True
 
+            if IS_WEB and event.type in (pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
+                px, py = pointer_xy(event)
+                p = (px, py)
+                if in_menu:
+                    state = new_game(save_data["selected_skin"])
+                    sparkles.clear()
+                    paused = False
+                    in_menu = False
+                    sfx["start"].play()
+                    play_bgm(bgm_game)
+                    continue
+                if state and state.game_over:
+                    if px < WIDTH // 2:
+                        save_data["best_score"] = max(save_data["best_score"], state.score)
+                        write_save(save_data)
+                        state = new_game(save_data["selected_skin"])
+                        sparkles.clear()
+                        sfx["start"].play()
+                        play_bgm(bgm_game)
+                    else:
+                        save_data["best_score"] = max(save_data["best_score"], state.score)
+                        write_save(save_data)
+                        state = None
+                        in_menu = True
+                        play_bgm(bgm_menu)
+                    continue
+                if state and not state.game_over:
+                    if TOUCH_PAUSE_RECT.collidepoint(p):
+                        paused = not paused
+                        sfx["pause"].play()
+                    elif TOUCH_JUMP_RECT.collidepoint(p):
+                        jump_pressed = True
+
         # ---- Render-only states ----
         if in_shop:
             draw_skin_shop(screen, font, small, tick, save_data, shop_cursor)
@@ -1200,6 +1311,24 @@ async def main() -> None:
         keys = pygame.key.get_pressed()
         move_left = keys[pygame.K_a] or keys[pygame.K_LEFT]
         move_right = keys[pygame.K_d] or keys[pygame.K_RIGHT]
+        if IS_WEB:
+            mx, my = pygame.mouse.get_pos()
+            pressed = pygame.mouse.get_pressed(3)[0]
+            if pressed:
+                if TOUCH_LEFT_RECT.collidepoint((mx, my)):
+                    touch_move_left = True
+                if TOUCH_RIGHT_RECT.collidepoint((mx, my)):
+                    touch_move_right = True
+                if TOUCH_JUMP_RECT.collidepoint((mx, my)):
+                    touch_active.add("jump")
+                if TOUCH_PAUSE_RECT.collidepoint((mx, my)):
+                    touch_active.add("pause")
+            move_left = move_left or touch_move_left
+            move_right = move_right or touch_move_right
+            if move_left:
+                touch_active.add("left")
+            if move_right:
+                touch_active.add("right")
 
         if state.level_transition_timer > 0:
             state.level_transition_timer -= dt
@@ -1379,12 +1508,16 @@ async def main() -> None:
                     f"Score: {state.score}   Mice: {state.mice_caught}"
                     f"   Level: {state.level}", True, GOLD),
                 small.render(f"Best: {save_data['best_score']}", True, SPARKLE_COL),
-                small.render("R  retry  |  M  menu", True, WHITE),
+                small.render("R  retry  |  M  menu", True, WHITE if not IS_WEB else SPARKLE_COL),
             ]
+            if IS_WEB:
+                lines.append(small.render("Tap left side: retry  |  right side: menu", True, WHITE))
             y_start = HEIGHT // 2 - 50
             for i, line in enumerate(lines):
                 screen.blit(line, (WIDTH // 2 - line.get_width() // 2,
                                    y_start + i * 32))
+
+        draw_touch_controls(screen, touch_active)
 
         await asyncio.sleep(0)
         pygame.display.flip()
