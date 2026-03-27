@@ -1120,30 +1120,54 @@ def create_bgm_game() -> pygame.mixer.Sound:
     ], 0.05)
 
 
-def create_web_bgm_menu() -> pygame.mixer.Sound:
-    return _build_web_bgm([
-        (523, 0.45), (587, 0.45), (659, 0.45), (784, 0.9),
-        (659, 0.45), (587, 0.45), (523, 0.9),
-        (392, 0.45), (440, 0.45), (523, 0.45), (587, 0.9),
-        (523, 0.45), (440, 0.45), (392, 0.9),
-        (523, 0.45), (659, 0.45), (784, 0.45), (880, 0.9),
-        (784, 0.45), (659, 0.45), (523, 0.9),
-        (440, 0.45), (523, 0.45), (587, 0.45), (523, 0.9),
-        (0, 0.45),
-    ], 0.06)
+_WEB_MENU_NOTES = [
+    (523, 0.45), (587, 0.45), (659, 0.45), (784, 0.9),
+    (659, 0.45), (587, 0.45), (523, 0.9),
+    (392, 0.45), (440, 0.45), (523, 0.45), (587, 0.9),
+    (523, 0.45), (440, 0.45), (392, 0.9),
+    (523, 0.45), (659, 0.45), (784, 0.45), (880, 0.9),
+    (784, 0.45), (659, 0.45), (523, 0.9),
+    (440, 0.45), (523, 0.45), (587, 0.45), (523, 0.9),
+    (0, 0.45),
+]
+
+_WEB_GAME_NOTES = [
+    (523, 0.3), (587, 0.3), (659, 0.3), (784, 0.3),
+    (880, 0.6), (784, 0.3), (659, 0.6),
+    (587, 0.3), (523, 0.3), (440, 0.3), (523, 0.3),
+    (587, 0.6), (0, 0.3),
+    (659, 0.3), (784, 0.3), (880, 0.3), (784, 0.3),
+    (659, 0.3), (587, 0.3), (523, 0.6),
+    (440, 0.3), (392, 0.3), (440, 0.3), (523, 0.3),
+    (587, 0.6), (523, 0.6), (0, 0.3),
+]
 
 
-def create_web_bgm_game() -> pygame.mixer.Sound:
-    return _build_web_bgm([
-        (523, 0.3), (587, 0.3), (659, 0.3), (784, 0.3),
-        (880, 0.6), (784, 0.3), (659, 0.6),
-        (587, 0.3), (523, 0.3), (440, 0.3), (523, 0.3),
-        (587, 0.6), (0, 0.3),
-        (659, 0.3), (784, 0.3), (880, 0.3), (784, 0.3),
-        (659, 0.3), (587, 0.3), (523, 0.6),
-        (440, 0.3), (392, 0.3), (440, 0.3), (523, 0.3),
-        (587, 0.6), (523, 0.6), (0, 0.3),
-    ], 0.05)
+class _WebBgmBuilder:
+    """Builds BGM one note per frame to avoid blocking."""
+
+    def __init__(self, notes: list[tuple[float, float]], vol: float) -> None:
+        self._notes = list(notes)
+        self._vol = vol
+        self._samples: list[int] = []
+        self._idx = 0
+        self.sound: pygame.mixer.Sound | None = None
+        self.done = False
+
+    def tick(self) -> bool:
+        if self.done:
+            return True
+        if self._idx >= len(self._notes):
+            self.sound = _make_sound(self._samples)
+            self.done = True
+            return True
+        freq, dur = self._notes[self._idx]
+        self._idx += 1
+        if freq <= 0:
+            self._samples.extend([0] * int(WEB_SR * dur))
+        else:
+            self._samples.extend(_web_melody_note(freq, dur, self._vol))
+        return self.done
 
 # ---------------------------------------------------------------------------
 # Main loop
@@ -1171,6 +1195,9 @@ async def main() -> None:
     small = pygame.font.SysFont("consolas", 18)
     hud_font = pygame.font.SysFont("consolas", 22)
 
+    _bgm_menu_builder: _WebBgmBuilder | None = None
+    _bgm_game_builder: _WebBgmBuilder | None = None
+
     if not mixer_ready:
         sfx = _SilentDict()
         bgm_menu = _NoSound()
@@ -1179,8 +1206,10 @@ async def main() -> None:
         pygame.mixer.set_num_channels(16)
         if IS_WEB:
             sfx = _SilentDict()
-            bgm_menu = create_web_bgm_menu()
-            bgm_game = create_web_bgm_game()
+            bgm_menu = _NoSound()
+            bgm_game = _NoSound()
+            _bgm_menu_builder = _WebBgmBuilder(_WEB_MENU_NOTES, 0.06)
+            _bgm_game_builder = _WebBgmBuilder(_WEB_GAME_NOTES, 0.05)
         else:
             sfx = create_sounds()
             bgm_menu = create_bgm_menu()
@@ -1225,6 +1254,20 @@ async def main() -> None:
                 sfx[_sname] = _sgen()
             except Exception:
                 pass
+
+        if IS_WEB:
+            if _bgm_menu_builder and not _bgm_menu_builder.done:
+                _bgm_menu_builder.tick()
+                if _bgm_menu_builder.done and _bgm_menu_builder.sound:
+                    bgm_menu = _bgm_menu_builder.sound
+                    if bgm_started and in_menu:
+                        play_bgm(bgm_menu)
+            if _bgm_game_builder and not _bgm_game_builder.done:
+                _bgm_game_builder.tick()
+                if _bgm_game_builder.done and _bgm_game_builder.sound:
+                    bgm_game = _bgm_game_builder.sound
+                    if bgm_started and not in_menu:
+                        play_bgm(bgm_game)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
