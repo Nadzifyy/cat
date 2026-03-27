@@ -30,6 +30,7 @@ class _SilentDict(dict):
 WIDTH, HEIGHT = 900, 520
 GROUND_Y = HEIGHT - 100
 FPS = 60
+WEB_FPS = 30
 SAMPLE_RATE = 22050
 OBSTACLES_PER_LEVEL = 6
 MAX_LIVES = 3
@@ -329,21 +330,22 @@ class Cat:
         pygame.draw.arc(surface, fur_dark, (head_cx - 5, head_cy + 4, 5, 4), 3.6, 5.8, 1)
         pygame.draw.arc(surface, fur_dark, (head_cx, head_cy + 4, 5, 4), 3.6, 5.8, 1)
 
-        # Whiskers
-        w_dir = 1 if not flip else -1
-        for dy in (-2, 1, 4):
-            pygame.draw.line(surface, fur_dark,
-                             (head_cx + 8 * w_dir, head_cy + 5 + dy),
-                             (head_cx + 22 * w_dir, head_cy + 3 + dy), 1)
-            pygame.draw.line(surface, fur_dark,
-                             (head_cx - 8 * w_dir, head_cy + 5 + dy),
-                             (head_cx - 22 * w_dir, head_cy + 3 + dy), 1)
+        if not IS_WEB:
+            # Whiskers
+            w_dir = 1 if not flip else -1
+            for dy in (-2, 1, 4):
+                pygame.draw.line(surface, fur_dark,
+                                 (head_cx + 8 * w_dir, head_cy + 5 + dy),
+                                 (head_cx + 22 * w_dir, head_cy + 3 + dy), 1)
+                pygame.draw.line(surface, fur_dark,
+                                 (head_cx - 8 * w_dir, head_cy + 5 + dy),
+                                 (head_cx - 22 * w_dir, head_cy + 3 + dy), 1)
 
-        # Forehead stripes
-        for sx in (-4, 0, 4):
-            pygame.draw.line(surface, fur_dark,
-                             (head_cx + sx, head_cy - 10),
-                             (head_cx + sx, head_cy - 5), 1)
+            # Forehead stripes
+            for sx in (-4, 0, 4):
+                pygame.draw.line(surface, fur_dark,
+                                 (head_cx + sx, head_cy - 10),
+                                 (head_cx + sx, head_cy - 5), 1)
 
         # Double-jump spin effect
         if self.spin_timer > 0:
@@ -356,12 +358,16 @@ class Cat:
 
         # Shield bubble
         if self.shield:
-            shield_surf = pygame.Surface((self.w + 20, self.h + 20), pygame.SRCALPHA)
-            pygame.draw.ellipse(shield_surf, (*SHIELD_COL, 60),
-                                (0, 0, self.w + 20, self.h + 20))
-            pygame.draw.ellipse(shield_surf, (*SHIELD_COL, 120),
-                                (0, 0, self.w + 20, self.h + 20), 2)
-            surface.blit(shield_surf, (bx - 10, by - 10))
+            if IS_WEB:
+                pygame.draw.ellipse(surface, SHIELD_COL,
+                                    (bx - 10, by - 10, self.w + 20, self.h + 20), 3)
+            else:
+                shield_surf = pygame.Surface((self.w + 20, self.h + 20), pygame.SRCALPHA)
+                pygame.draw.ellipse(shield_surf, (*SHIELD_COL, 60),
+                                    (0, 0, self.w + 20, self.h + 20))
+                pygame.draw.ellipse(shield_surf, (*SHIELD_COL, 120),
+                                    (0, 0, self.w + 20, self.h + 20), 2)
+                surface.blit(shield_surf, (bx - 10, by - 10))
 
         # Speed boost trail
         if self.speed_boost_timer > 0:
@@ -413,8 +419,9 @@ class Obstacle:
         elif self.kind == OBS_BUSH:
             pygame.draw.ellipse(surface, BUSH_COL, r)
             pygame.draw.ellipse(surface, (60, 130, 50), r, 2)
-            for lx in range(r.x + 6, r.x + r.w - 6, 8):
-                pygame.draw.circle(surface, (95, 165, 75), (lx, r.y + r.h // 3), 3)
+            if not IS_WEB:
+                for lx in range(r.x + 6, r.x + r.w - 6, 8):
+                    pygame.draw.circle(surface, (95, 165, 75), (lx, r.y + r.h // 3), 3)
         elif self.kind == OBS_BIRD:
             cx, cy = r.x + r.w // 2, r.y + r.h // 2
             wing = math.sin(tick * 0.2 + self._phase) * 6
@@ -580,7 +587,8 @@ class Sparkle:
 def spawn_sparkles(x: float, y: float,
                    color: tuple = (255, 255, 200)) -> list[Sparkle]:
     out: list[Sparkle] = []
-    for _ in range(6):
+    count = 3 if IS_WEB else 6
+    for _ in range(count):
         angle = random.uniform(0, math.tau)
         spd = random.uniform(40, 120)
         out.append(Sparkle(x=x, y=y, vx=math.cos(angle) * spd,
@@ -679,34 +687,41 @@ def draw_parallax(screen: pygame.Surface, offsets: list[float],
     screen.fill((sky_r, sky_g, sky_b))
 
     # Clouds
-    for i in range(4):
+    n_clouds = 2 if IS_WEB else 4
+    for i in range(n_clouds):
         cx = (i * 260 + offsets[0]) % (WIDTH + 200) - 100
         cy = 55 + (i % 2) * 25
         pygame.draw.ellipse(screen, WHITE, (cx, cy, 70, 36))
-        pygame.draw.ellipse(screen, WHITE, (cx + 20, cy - 10, 70, 40))
+        if not IS_WEB:
+            pygame.draw.ellipse(screen, WHITE, (cx + 20, cy - 10, 70, 40))
         pygame.draw.ellipse(screen, WHITE, (cx + 42, cy, 70, 36))
 
     # Far hills
-    for i in range(4):
+    n_hills = 2 if IS_WEB else 4
+    for i in range(n_hills):
         hx = (i * 300 + offsets[1]) % (WIDTH + 350) - 175
         pygame.draw.ellipse(screen, FAR_HILL, (hx, GROUND_Y - 55, 280, 110))
 
     # Mid trees
-    for i in range(6):
+    n_trees = 3 if IS_WEB else 6
+    for i in range(n_trees):
         tx = (i * 170 + offsets[2]) % (WIDTH + 160) - 80
         pygame.draw.rect(screen, TRUNK_COL, (tx + 7, GROUND_Y - 36, 7, 36))
         pygame.draw.circle(screen, MID_TREE, (tx + 10, GROUND_Y - 42), 16)
-        pygame.draw.circle(screen, (80, 150, 60), (tx + 10, GROUND_Y - 42), 16, 2)
+        if not IS_WEB:
+            pygame.draw.circle(screen, (80, 150, 60), (tx + 10, GROUND_Y - 42), 16, 2)
 
     # Near bushes
-    for i in range(8):
+    n_bushes = 4 if IS_WEB else 8
+    for i in range(n_bushes):
         bx = (i * 130 + offsets[3]) % (WIDTH + 120) - 60
         pygame.draw.ellipse(screen, BUSH_COL, (bx, GROUND_Y - 10, 36, 22))
 
     # Ground
     pygame.draw.rect(screen, GROUND_COL, (0, GROUND_Y, WIDTH, HEIGHT - GROUND_Y))
-    for gx in range(0, WIDTH, 28):
-        pygame.draw.rect(screen, DARK_GROUND, (gx, GROUND_Y, 14, 6), border_radius=3)
+    if not IS_WEB:
+        for gx in range(0, WIDTH, 28):
+            pygame.draw.rect(screen, DARK_GROUND, (gx, GROUND_Y, 14, 6), border_radius=3)
 
 
 def update_parallax(offsets: list[float], dt: float) -> None:
@@ -899,34 +914,32 @@ def draw_level_banner(screen: pygame.Surface, font: pygame.font.Font,
 def draw_touch_controls(screen: pygame.Surface, active: set[str]) -> None:
     if not IS_WEB:
         return
-    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    off_col = (40, 40, 50, 100)
-    on_col = (255, 255, 255, 150)
-    jump_off = (60, 110, 220, 120)
+    off_col = (50, 50, 60)
+    on_col = (180, 180, 190)
+    jump_off = (60, 100, 180)
 
     for name, rect, off in [("left", TOUCH_LEFT_RECT, off_col),
                              ("right", TOUCH_RIGHT_RECT, off_col),
                              ("jump", TOUCH_JUMP_RECT, jump_off)]:
         col = on_col if name in active else off
-        pygame.draw.circle(overlay, col, rect.center, rect.w // 2)
-        pygame.draw.circle(overlay, (255, 255, 255, 60), rect.center, rect.w // 2, 2)
+        pygame.draw.circle(screen, col, rect.center, rect.w // 2)
+        pygame.draw.circle(screen, (100, 100, 110), rect.center, rect.w // 2, 2)
 
     pcol = on_col if "pause" in active else off_col
-    pygame.draw.rect(overlay, pcol, TOUCH_PAUSE_RECT, border_radius=10)
-    pygame.draw.rect(overlay, (255, 255, 255, 60), TOUCH_PAUSE_RECT, 2, border_radius=10)
+    pygame.draw.rect(screen, pcol, TOUCH_PAUSE_RECT, border_radius=10)
+    pygame.draw.rect(screen, (100, 100, 110), TOUCH_PAUSE_RECT, 2, border_radius=10)
 
     lx, ly = TOUCH_LEFT_RECT.center
     rx, ry = TOUCH_RIGHT_RECT.center
     jx, jy = TOUCH_JUMP_RECT.center
     s = 14
-    pygame.draw.polygon(overlay, WHITE, [(lx - s, ly), (lx + s // 2, ly - s), (lx + s // 2, ly + s)])
-    pygame.draw.polygon(overlay, WHITE, [(rx + s, ry), (rx - s // 2, ry - s), (rx - s // 2, ry + s)])
-    pygame.draw.polygon(overlay, WHITE, [(jx, jy - s), (jx - s, jy + s // 2), (jx + s, jy + s // 2)])
+    pygame.draw.polygon(screen, WHITE, [(lx - s, ly), (lx + s // 2, ly - s), (lx + s // 2, ly + s)])
+    pygame.draw.polygon(screen, WHITE, [(rx + s, ry), (rx - s // 2, ry - s), (rx - s // 2, ry + s)])
+    pygame.draw.polygon(screen, WHITE, [(jx, jy - s), (jx - s, jy + s // 2), (jx + s, jy + s // 2)])
 
     px, py = TOUCH_PAUSE_RECT.center
-    pygame.draw.line(overlay, WHITE, (px - 5, py - 8), (px - 5, py + 8), 3)
-    pygame.draw.line(overlay, WHITE, (px + 5, py - 8), (px + 5, py + 8), 3)
-    screen.blit(overlay, (0, 0))
+    pygame.draw.line(screen, WHITE, (px - 5, py - 8), (px - 5, py + 8), 3)
+    pygame.draw.line(screen, WHITE, (px + 5, py - 8), (px + 5, py + 8), 3)
 
 # ---------------------------------------------------------------------------
 # Sound effects
@@ -1169,7 +1182,7 @@ async def main() -> None:
         bgm_started = True
 
     while running:
-        dt = clock.tick(FPS) / 1000.0
+        dt = clock.tick(WEB_FPS if IS_WEB else FPS) / 1000.0
         tick += 1
         jump_pressed = False
         touch_active.clear()
