@@ -34,10 +34,18 @@ SAMPLE_RATE = 22050
 OBSTACLES_PER_LEVEL = 6
 MAX_LIVES = 3
 SAVE_FILE = Path(__file__).parent / "save_data.json"
-TOUCH_LEFT_RECT = pygame.Rect(18, HEIGHT - 90, 64, 64)
-TOUCH_RIGHT_RECT = pygame.Rect(92, HEIGHT - 90, 64, 64)
-TOUCH_JUMP_RECT = pygame.Rect(WIDTH - 92, HEIGHT - 96, 72, 72)
-TOUCH_PAUSE_RECT = pygame.Rect(WIDTH - 56, 12, 40, 40)
+TOUCH_BTN_SIZE = 70
+TOUCH_JUMP_SIZE = 80
+TOUCH_PAD = 16
+TOUCH_LEFT_RECT = pygame.Rect(TOUCH_PAD, HEIGHT - TOUCH_BTN_SIZE - TOUCH_PAD,
+                               TOUCH_BTN_SIZE, TOUCH_BTN_SIZE)
+TOUCH_RIGHT_RECT = pygame.Rect(TOUCH_PAD + TOUCH_BTN_SIZE + 10,
+                                HEIGHT - TOUCH_BTN_SIZE - TOUCH_PAD,
+                                TOUCH_BTN_SIZE, TOUCH_BTN_SIZE)
+TOUCH_JUMP_RECT = pygame.Rect(WIDTH - TOUCH_JUMP_SIZE - TOUCH_PAD,
+                               HEIGHT - TOUCH_JUMP_SIZE - TOUCH_PAD,
+                               TOUCH_JUMP_SIZE, TOUCH_JUMP_SIZE)
+TOUCH_PAUSE_RECT = pygame.Rect(WIDTH - 52, 8, 44, 44)
 
 # Colors
 SKY = (186, 228, 255)
@@ -871,7 +879,8 @@ def draw_pause(screen: pygame.Surface, font: pygame.font.Font,
     screen.blit(overlay, (0, 0))
     t = font.render("PAUSED", True, WHITE)
     screen.blit(t, (WIDTH // 2 - t.get_width() // 2, HEIGHT // 2 - 30))
-    s = small.render("Press ESC to resume", True, (200, 200, 200))
+    hint = "Tap pause button to resume" if IS_WEB else "Press ESC to resume"
+    s = small.render(hint, True, (200, 200, 200))
     screen.blit(s, (WIDTH // 2 - s.get_width() // 2, HEIGHT // 2 + 10))
 
 
@@ -891,26 +900,32 @@ def draw_touch_controls(screen: pygame.Surface, active: set[str]) -> None:
     if not IS_WEB:
         return
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    base = (30, 30, 40, 80)
-    on = (255, 255, 255, 120)
-    pygame.draw.circle(overlay, on if "left" in active else base,
-                       TOUCH_LEFT_RECT.center, TOUCH_LEFT_RECT.w // 2)
-    pygame.draw.circle(overlay, on if "right" in active else base,
-                       TOUCH_RIGHT_RECT.center, TOUCH_RIGHT_RECT.w // 2)
-    pygame.draw.circle(overlay, on if "jump" in active else (80, 130, 255, 110),
-                       TOUCH_JUMP_RECT.center, TOUCH_JUMP_RECT.w // 2)
-    pygame.draw.rect(overlay, on if "pause" in active else base, TOUCH_PAUSE_RECT, border_radius=8)
+    off_col = (40, 40, 50, 100)
+    on_col = (255, 255, 255, 150)
+    jump_off = (60, 110, 220, 120)
+
+    for name, rect, off in [("left", TOUCH_LEFT_RECT, off_col),
+                             ("right", TOUCH_RIGHT_RECT, off_col),
+                             ("jump", TOUCH_JUMP_RECT, jump_off)]:
+        col = on_col if name in active else off
+        pygame.draw.circle(overlay, col, rect.center, rect.w // 2)
+        pygame.draw.circle(overlay, (255, 255, 255, 60), rect.center, rect.w // 2, 2)
+
+    pcol = on_col if "pause" in active else off_col
+    pygame.draw.rect(overlay, pcol, TOUCH_PAUSE_RECT, border_radius=10)
+    pygame.draw.rect(overlay, (255, 255, 255, 60), TOUCH_PAUSE_RECT, 2, border_radius=10)
 
     lx, ly = TOUCH_LEFT_RECT.center
     rx, ry = TOUCH_RIGHT_RECT.center
     jx, jy = TOUCH_JUMP_RECT.center
-    pygame.draw.polygon(overlay, WHITE, [(lx + 8, ly - 12), (lx - 10, ly), (lx + 8, ly + 12)])
-    pygame.draw.polygon(overlay, WHITE, [(rx - 8, ry - 12), (rx + 10, ry), (rx - 8, ry + 12)])
-    pygame.draw.line(overlay, WHITE, (jx - 10, jy), (jx + 10, jy), 4)
-    pygame.draw.line(overlay, WHITE, (TOUCH_PAUSE_RECT.x + 14, TOUCH_PAUSE_RECT.y + 9),
-                     (TOUCH_PAUSE_RECT.x + 14, TOUCH_PAUSE_RECT.y + 31), 4)
-    pygame.draw.line(overlay, WHITE, (TOUCH_PAUSE_RECT.x + 26, TOUCH_PAUSE_RECT.y + 9),
-                     (TOUCH_PAUSE_RECT.x + 26, TOUCH_PAUSE_RECT.y + 31), 4)
+    s = 14
+    pygame.draw.polygon(overlay, WHITE, [(lx - s, ly), (lx + s // 2, ly - s), (lx + s // 2, ly + s)])
+    pygame.draw.polygon(overlay, WHITE, [(rx + s, ry), (rx - s // 2, ry - s), (rx - s // 2, ry + s)])
+    pygame.draw.polygon(overlay, WHITE, [(jx, jy - s), (jx - s, jy + s // 2), (jx + s, jy + s // 2)])
+
+    px, py = TOUCH_PAUSE_RECT.center
+    pygame.draw.line(overlay, WHITE, (px - 5, py - 8), (px - 5, py + 8), 3)
+    pygame.draw.line(overlay, WHITE, (px + 5, py - 8), (px + 5, py + 8), 3)
     screen.blit(overlay, (0, 0))
 
 # ---------------------------------------------------------------------------
@@ -1145,24 +1160,19 @@ async def main() -> None:
     running = True
     tick = 0
     sparkles: list[Sparkle] = []
-    touch_move_left = False
-    touch_move_right = False
+    touch_held = False
     touch_active: set[str] = set()
+    bgm_started = False
 
-    play_bgm(bgm_menu)
+    if not IS_WEB:
+        play_bgm(bgm_menu)
+        bgm_started = True
 
     while running:
         dt = clock.tick(FPS) / 1000.0
         tick += 1
         jump_pressed = False
-        touch_move_left = False
-        touch_move_right = False
         touch_active.clear()
-
-        def pointer_xy(evt) -> tuple[int, int]:
-            if hasattr(evt, "x") and isinstance(evt.x, float) and evt.x <= 1.0:
-                return int(evt.x * WIDTH), int(evt.y * HEIGHT)
-            return int(getattr(evt, "x", 0)), int(getattr(evt, "y", 0))
 
         if IS_WEB and _web_sound_queue:
             try:
@@ -1242,9 +1252,12 @@ async def main() -> None:
                 if event.key in (pygame.K_SPACE, pygame.K_w, pygame.K_UP):
                     jump_pressed = True
 
-            if IS_WEB and event.type in (pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
-                px, py = pointer_xy(event)
-                p = (px, py)
+            if IS_WEB and event.type == pygame.MOUSEBUTTONDOWN:
+                if not bgm_started:
+                    bgm_started = True
+                    play_bgm(bgm_menu if in_menu else bgm_game)
+                touch_held = True
+                mx, my = event.pos if hasattr(event, "pos") else pygame.mouse.get_pos()
                 if in_menu:
                     state = new_game(save_data["selected_skin"])
                     sparkles.clear()
@@ -1254,7 +1267,7 @@ async def main() -> None:
                     play_bgm(bgm_game)
                     continue
                 if state and state.game_over:
-                    if px < WIDTH // 2:
+                    if mx < WIDTH // 2:
                         save_data["best_score"] = max(save_data["best_score"], state.score)
                         write_save(save_data)
                         state = new_game(save_data["selected_skin"])
@@ -1269,11 +1282,14 @@ async def main() -> None:
                         play_bgm(bgm_menu)
                     continue
                 if state and not state.game_over:
-                    if TOUCH_PAUSE_RECT.collidepoint(p):
+                    if TOUCH_PAUSE_RECT.collidepoint((mx, my)):
                         paused = not paused
                         sfx["pause"].play()
-                    elif TOUCH_JUMP_RECT.collidepoint(p):
+                    elif TOUCH_JUMP_RECT.collidepoint((mx, my)):
                         jump_pressed = True
+
+            if IS_WEB and event.type == pygame.MOUSEBUTTONUP:
+                touch_held = False
 
         # ---- Render-only states ----
         if in_shop:
@@ -1311,24 +1327,16 @@ async def main() -> None:
         keys = pygame.key.get_pressed()
         move_left = keys[pygame.K_a] or keys[pygame.K_LEFT]
         move_right = keys[pygame.K_d] or keys[pygame.K_RIGHT]
-        if IS_WEB:
+        if IS_WEB and touch_held:
             mx, my = pygame.mouse.get_pos()
-            pressed = pygame.mouse.get_pressed(3)[0]
-            if pressed:
-                if TOUCH_LEFT_RECT.collidepoint((mx, my)):
-                    touch_move_left = True
-                if TOUCH_RIGHT_RECT.collidepoint((mx, my)):
-                    touch_move_right = True
-                if TOUCH_JUMP_RECT.collidepoint((mx, my)):
-                    touch_active.add("jump")
-                if TOUCH_PAUSE_RECT.collidepoint((mx, my)):
-                    touch_active.add("pause")
-            move_left = move_left or touch_move_left
-            move_right = move_right or touch_move_right
-            if move_left:
+            if TOUCH_LEFT_RECT.collidepoint((mx, my)):
+                move_left = True
                 touch_active.add("left")
-            if move_right:
+            if TOUCH_RIGHT_RECT.collidepoint((mx, my)):
+                move_right = True
                 touch_active.add("right")
+            if TOUCH_JUMP_RECT.collidepoint((mx, my)):
+                touch_active.add("jump")
 
         if state.level_transition_timer > 0:
             state.level_transition_timer -= dt
