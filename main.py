@@ -30,7 +30,6 @@ class _SilentDict(dict):
 WIDTH, HEIGHT = 900, 520
 GROUND_Y = HEIGHT - 100
 FPS = 60
-WEB_FPS = 30
 SAMPLE_RATE = 22050
 OBSTACLES_PER_LEVEL = 6
 MAX_LIVES = 3
@@ -961,21 +960,19 @@ def _web_tone(freq: float, dur: float, vol: float = 0.22) -> list[int]:
 
 def _web_melody_note(freq: float, dur: float, vol: float = 0.08) -> list[int]:
     n = int(WEB_SR * dur)
-    attack = int(n * 0.08)
-    release = int(n * 0.25)
+    attack = int(n * 0.1)
+    release = int(n * 0.3)
+    TWO_PI = 2 * math.pi
+    step = TWO_PI * freq / WEB_SR
     out: list[int] = []
     for i in range(n):
-        t = i / WEB_SR
         if i < attack:
             env = i / attack
         elif i > n - release:
             env = (n - i) / release
         else:
             env = 1.0
-        wave = (math.sin(2 * math.pi * freq * t) * 0.7 +
-                math.sin(2 * math.pi * freq * 2 * t) * 0.2 +
-                math.sin(2 * math.pi * freq * 3 * t) * 0.1)
-        out.append(int(wave * vol * env * 32767))
+        out.append(int(math.sin(step * i) * vol * env * 32767))
     return out
 
 
@@ -1084,16 +1081,6 @@ def _build_bgm(notes: list[tuple[float, float]], vol: float) -> pygame.mixer.Sou
     return _make_sound(samples)
 
 
-def _build_web_bgm(notes: list[tuple[float, float]], vol: float) -> pygame.mixer.Sound:
-    samples: list[int] = []
-    for freq, dur in notes:
-        if freq <= 0:
-            samples.extend([0] * int(WEB_SR * dur))
-        else:
-            samples.extend(_web_melody_note(freq, dur, vol))
-    return _make_sound(samples)
-
-
 def create_bgm_menu() -> pygame.mixer.Sound:
     return _build_bgm([
         (523, 0.45), (587, 0.45), (659, 0.45), (784, 0.9),
@@ -1154,19 +1141,20 @@ class _WebBgmBuilder:
         self.sound: pygame.mixer.Sound | None = None
         self.done = False
 
-    def tick(self) -> bool:
+    def tick(self, count: int = 3) -> bool:
         if self.done:
             return True
-        if self._idx >= len(self._notes):
-            self.sound = _make_sound(self._samples)
-            self.done = True
-            return True
-        freq, dur = self._notes[self._idx]
-        self._idx += 1
-        if freq <= 0:
-            self._samples.extend([0] * int(WEB_SR * dur))
-        else:
-            self._samples.extend(_web_melody_note(freq, dur, self._vol))
+        for _ in range(count):
+            if self._idx >= len(self._notes):
+                self.sound = _make_sound(self._samples)
+                self.done = True
+                return True
+            freq, dur = self._notes[self._idx]
+            self._idx += 1
+            if freq <= 0:
+                self._samples.extend([0] * int(WEB_SR * dur))
+            else:
+                self._samples.extend(_web_melody_note(freq, dur, self._vol))
         return self.done
 
 # ---------------------------------------------------------------------------
@@ -1243,7 +1231,7 @@ async def main() -> None:
         bgm_started = True
 
     while running:
-        dt = clock.tick(WEB_FPS if IS_WEB else FPS) / 1000.0
+        dt = clock.tick(FPS) / 1000.0
         tick += 1
         jump_pressed = False
         touch_active.clear()
