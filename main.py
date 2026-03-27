@@ -32,6 +32,7 @@ GROUND_Y = HEIGHT - 100
 FPS = 60
 SAMPLE_RATE = 22050
 OBSTACLES_PER_LEVEL = 6
+MAX_LIVES = 3
 SAVE_FILE = Path(__file__).parent / "save_data.json"
 
 # Colors
@@ -150,7 +151,7 @@ class Cat:
     jumps_left: int = 2
     max_jumps: int = 2
     # Lives & invincibility
-    lives: int = 3
+    lives: int = MAX_LIVES
     invincible_timer: float = 0.0
     # Power-up state
     shield: bool = False
@@ -487,6 +488,7 @@ class Mouse:
 POWERUP_SHIELD = "shield"
 POWERUP_MAGNET = "magnet"
 POWERUP_SPEED = "speed"
+POWERUP_HEART = "heart"
 
 @dataclass
 class PowerUp:
@@ -528,6 +530,14 @@ class PowerUp:
             bolt = [(cx - 2, cy - 9), (cx + 4, cy - 1), (cx, cy - 1),
                     (cx + 3, cy + 9), (cx - 4, cy + 1), (cx, cy + 1)]
             pygame.draw.polygon(surface, WHITE, bolt)
+        elif self.kind == POWERUP_HEART:
+            pygame.draw.circle(surface, HEART_COL, (cx, cy), 13)
+            pygame.draw.circle(surface, (160, 40, 70), (cx, cy), 13, 2)
+            pygame.draw.polygon(surface, WHITE, [
+                (cx, cy + 6), (cx - 5, cy + 1), (cx - 5, cy - 4),
+                (cx - 2, cy - 6), (cx, cy - 4),
+                (cx + 2, cy - 6), (cx + 5, cy - 4), (cx + 5, cy + 1),
+            ], 2)
 
 # ---------------------------------------------------------------------------
 # Sparkle particle
@@ -624,10 +634,13 @@ def make_mouse(obstacle: Obstacle, level: int) -> Mouse | None:
                  speed=_rand_speed(level))
 
 
-def make_powerup(obstacle: Obstacle, level: int) -> PowerUp | None:
+def make_powerup(obstacle: Obstacle, level: int, cat_lives: int = MAX_LIVES) -> PowerUp | None:
     if random.random() > 0.12:
         return None
-    kind = random.choice([POWERUP_SHIELD, POWERUP_MAGNET, POWERUP_SPEED])
+    choices = [POWERUP_SHIELD, POWERUP_MAGNET, POWERUP_SPEED]
+    if cat_lives <= 2:
+        choices.extend([POWERUP_HEART, POWERUP_HEART])
+    kind = random.choice(choices)
     py = obstacle.y - random.randint(40, 80)
     py = max(50, py)
     return PowerUp(x=obstacle.x + obstacle.w / 2, y=py, kind=kind,
@@ -722,7 +735,7 @@ def new_game(skin: str = "orange") -> GameState:
         m = make_mouse(o, 1)
         if m:
             mice.append(m)
-        p = make_powerup(o, 1)
+        p = make_powerup(o, 1, cat.lives)
         if p:
             powerups.append(p)
     pl = make_platform(WIDTH + 60, 1)
@@ -736,7 +749,7 @@ def new_game(skin: str = "orange") -> GameState:
 # ---------------------------------------------------------------------------
 
 def draw_hearts(screen: pygame.Surface, lives: int, x: int, y: int) -> None:
-    for i in range(3):
+    for i in range(MAX_LIVES):
         cx = x + i * 26
         col = HEART_COL if i < lives else (80, 80, 80)
         pygame.draw.polygon(screen, col, [
@@ -1244,7 +1257,7 @@ async def main() -> None:
                 m = make_mouse(new_obs, state.level)
                 if m:
                     state.mice.append(m)
-                p = make_powerup(new_obs, state.level)
+                p = make_powerup(new_obs, state.level, state.cat.lives)
                 if p:
                     state.powerups.append(p)
 
@@ -1284,6 +1297,8 @@ async def main() -> None:
                         state.cat.magnet_timer = 8.0
                     elif pu.kind == POWERUP_SPEED:
                         state.cat.speed_boost_timer = 6.0
+                    elif pu.kind == POWERUP_HEART:
+                        state.cat.lives = min(MAX_LIVES, state.cat.lives + 1)
             state.powerups = [p for p in state.powerups if not p.collected]
 
             # Obstacle collision
@@ -1292,7 +1307,8 @@ async def main() -> None:
                     if cat_hitbox.colliderect(obs.rect()):
                         if state.cat.shield:
                             state.cat.shield = False
-                            state.cat.invincible_timer = 1.0
+                            state.cat.invincible_timer = 2.0
+                            state.cat.x = max(0, state.cat.x - 28)
                             sfx["shield_break"].play()
                             sparkles.extend(
                                 spawn_sparkles(state.cat.x + state.cat.w / 2,
