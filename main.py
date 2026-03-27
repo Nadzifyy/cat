@@ -869,9 +869,42 @@ def draw_level_banner(screen: pygame.Surface, font: pygame.font.Font,
 # Sound effects
 # ---------------------------------------------------------------------------
 
+WEB_SR = 11025
+
+
 def _make_sound(samples: list[int]) -> pygame.mixer.Sound:
     buf = array.array("h", samples)
     return pygame.mixer.Sound(buffer=buf)
+
+
+def _web_tone(freq: float, dur: float, vol: float = 0.22) -> list[int]:
+    n = int(WEB_SR * dur)
+    return [int(math.sin(2 * math.pi * freq * i / WEB_SR) * vol * (1 - i / n) * 32767)
+            for i in range(n)]
+
+
+def create_web_sound_queue() -> list[tuple[str, object]]:
+    """Return (name, callable) pairs that each generate one short sound."""
+    t = _web_tone
+    def mk(*parts: list[int]) -> pygame.mixer.Sound:
+        samples: list[int] = []
+        for p in parts:
+            samples += p
+        return _make_sound(samples)
+
+    return [
+        ("jump",         lambda: mk(t(420, 0.05), t(560, 0.05))),
+        ("double_jump",  lambda: mk(t(560, 0.04), t(750, 0.04), t(900, 0.03))),
+        ("catch",        lambda: mk(t(880, 0.06), t(1100, 0.08))),
+        ("hit",          lambda: mk(t(120, 0.10, 0.3))),
+        ("life_lost",    lambda: mk(t(400, 0.07), t(300, 0.07), t(200, 0.09))),
+        ("shield_break", lambda: mk(t(300, 0.08))),
+        ("powerup",      lambda: mk(t(660, 0.05), t(880, 0.05), t(1100, 0.06))),
+        ("level_up",     lambda: mk(t(523, 0.07), t(659, 0.07), t(784, 0.07), t(1047, 0.07))),
+        ("pause",        lambda: mk(t(500, 0.06))),
+        ("buy",          lambda: mk(t(523, 0.06), t(659, 0.06), t(784, 0.06), t(1047, 0.07))),
+        ("start",        lambda: mk(t(523, 0.10), t(659, 0.08), t(784, 0.08))),
+    ]
 
 
 def _tone(freq: float, duration: float, volume: float = 0.25,
@@ -985,9 +1018,17 @@ def create_bgm_game() -> pygame.mixer.Sound:
 # ---------------------------------------------------------------------------
 
 async def main() -> None:
-    if not IS_WEB:
+    if IS_WEB:
+        pygame.init()
+        try:
+            pygame.mixer.init(WEB_SR, -16, 1, 512)
+            _web_sound_queue = create_web_sound_queue()
+        except Exception:
+            _web_sound_queue = []
+    else:
         pygame.mixer.pre_init(SAMPLE_RATE, -16, 1, 512)
-    pygame.init()
+        pygame.init()
+
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Cat Platformer")
     clock = pygame.time.Clock()
@@ -1031,6 +1072,13 @@ async def main() -> None:
         dt = clock.tick(FPS) / 1000.0
         tick += 1
         jump_pressed = False
+
+        if IS_WEB and _web_sound_queue:
+            try:
+                _sname, _sgen = _web_sound_queue.pop(0)
+                sfx[_sname] = _sgen()
+            except Exception:
+                pass
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
