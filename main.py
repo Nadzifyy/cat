@@ -1037,6 +1037,10 @@ def _melody_note(freq: float, duration: float, volume: float = 0.08) -> list[int
     return out
 
 
+def _stretch_notes(notes: list[tuple[float, float]], tempo_scale: float) -> list[tuple[float, float]]:
+    return [(freq, dur * tempo_scale) for freq, dur in notes]
+
+
 def create_sounds() -> dict[str, pygame.mixer.Sound]:
     sfx: dict[str, pygame.mixer.Sound] = {}
     sfx["jump"] = _make_sound(_tone(420, 0.07, 0.2) + _tone(560, 0.07, 0.18))
@@ -1082,7 +1086,7 @@ def _build_bgm(notes: list[tuple[float, float]], vol: float) -> pygame.mixer.Sou
 
 
 def create_bgm_menu() -> pygame.mixer.Sound:
-    return _build_bgm([
+    return _build_bgm(_stretch_notes([
         (523, 0.45), (587, 0.45), (659, 0.45), (784, 0.9),
         (659, 0.45), (587, 0.45), (523, 0.9),
         (392, 0.45), (440, 0.45), (523, 0.45), (587, 0.9),
@@ -1091,11 +1095,11 @@ def create_bgm_menu() -> pygame.mixer.Sound:
         (784, 0.45), (659, 0.45), (523, 0.9),
         (440, 0.45), (523, 0.45), (587, 0.45), (523, 0.9),
         (0, 0.45),
-    ], 0.06)
+    ], 1.18), 0.06)
 
 
 def create_bgm_game() -> pygame.mixer.Sound:
-    return _build_bgm([
+    return _build_bgm(_stretch_notes([
         (523, 0.3), (587, 0.3), (659, 0.3), (784, 0.3),
         (880, 0.6), (784, 0.3), (659, 0.6),
         (587, 0.3), (523, 0.3), (440, 0.3), (523, 0.3),
@@ -1104,10 +1108,10 @@ def create_bgm_game() -> pygame.mixer.Sound:
         (659, 0.3), (587, 0.3), (523, 0.6),
         (440, 0.3), (392, 0.3), (440, 0.3), (523, 0.3),
         (587, 0.6), (523, 0.6), (0, 0.3),
-    ], 0.05)
+    ], 1.18), 0.05)
 
 
-_WEB_MENU_NOTES = [
+_WEB_MENU_NOTES = _stretch_notes([
     (523, 0.45), (587, 0.45), (659, 0.45), (784, 0.9),
     (659, 0.45), (587, 0.45), (523, 0.9),
     (392, 0.45), (440, 0.45), (523, 0.45), (587, 0.9),
@@ -1116,9 +1120,9 @@ _WEB_MENU_NOTES = [
     (784, 0.45), (659, 0.45), (523, 0.9),
     (440, 0.45), (523, 0.45), (587, 0.45), (523, 0.9),
     (0, 0.45),
-]
+], 1.18)
 
-_WEB_GAME_NOTES = [
+_WEB_GAME_NOTES = _stretch_notes([
     (523, 0.3), (587, 0.3), (659, 0.3), (784, 0.3),
     (880, 0.6), (784, 0.3), (659, 0.6),
     (587, 0.3), (523, 0.3), (440, 0.3), (523, 0.3),
@@ -1127,7 +1131,7 @@ _WEB_GAME_NOTES = [
     (659, 0.3), (587, 0.3), (523, 0.6),
     (440, 0.3), (392, 0.3), (440, 0.3), (523, 0.3),
     (587, 0.6), (523, 0.6), (0, 0.3),
-]
+], 1.18)
 
 
 class _WebBgmBuilder:
