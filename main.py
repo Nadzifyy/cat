@@ -9,6 +9,20 @@ from pathlib import Path
 
 import pygame
 
+IS_WEB = sys.platform == "emscripten"
+
+
+class _NoSound:
+    """Silent stub so sfx["any"].play() works without errors on web."""
+    def play(self, *a, **kw) -> None: pass
+    def stop(self, *a, **kw) -> None: pass
+    def set_volume(self, *a, **kw) -> None: pass
+
+
+class _SilentDict(dict):
+    def __missing__(self, key: str) -> _NoSound:
+        return _NoSound()
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -971,9 +985,9 @@ def create_bgm_game() -> pygame.mixer.Sound:
 # ---------------------------------------------------------------------------
 
 async def main() -> None:
-    pygame.mixer.pre_init(SAMPLE_RATE, -16, 1, 512)
+    if not IS_WEB:
+        pygame.mixer.pre_init(SAMPLE_RATE, -16, 1, 512)
     pygame.init()
-    pygame.mixer.set_num_channels(16)
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Cat Platformer")
     clock = pygame.time.Clock()
@@ -981,14 +995,24 @@ async def main() -> None:
     small = pygame.font.SysFont("consolas", 18)
     hud_font = pygame.font.SysFont("consolas", 22)
 
-    sfx = create_sounds()
-    bgm_menu = create_bgm_menu()
-    bgm_game = create_bgm_game()
-    bgm_channel = pygame.mixer.Channel(0)
+    if IS_WEB:
+        sfx: dict = _SilentDict()
+        bgm_menu: object = _NoSound()
+        bgm_game: object = _NoSound()
+    else:
+        pygame.mixer.set_num_channels(16)
+        sfx = create_sounds()
+        bgm_menu = create_bgm_menu()
+        bgm_game = create_bgm_game()
 
-    def play_bgm(track: pygame.mixer.Sound) -> None:
-        bgm_channel.stop()
-        bgm_channel.play(track, loops=-1)
+    bgm_channel = _NoSound() if IS_WEB else pygame.mixer.Channel(0)
+
+    def play_bgm(track: object) -> None:
+        try:
+            bgm_channel.stop()
+            bgm_channel.play(track, loops=-1)
+        except Exception:
+            pass
 
     save_data = load_save()
 
@@ -1302,7 +1326,6 @@ async def main() -> None:
         pygame.display.flip()
 
     pygame.quit()
-    sys.exit()
 
 
 asyncio.run(main())
