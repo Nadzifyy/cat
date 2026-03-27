@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: cat-platformer
+    runtime: python
+    buildCommand: pip install pygbag && python -m pygbag --build .
+    staticPublishPath: ./build/web
