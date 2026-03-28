@@ -71,7 +71,7 @@ FAR_HILL = (160, 210, 145)
 MID_TREE = (90, 160, 70)
 TRUNK_COL = (120, 85, 50)
 BUSH_COL = (75, 145, 60)
-SPIKE_COL = (160, 160, 165)
+SPIKE_COL = (160, 160, 165) 
 BIRD_COL = (60, 60, 75)
 
 # Obstacle kinds
@@ -985,10 +985,16 @@ def _web_tone(freq: float, dur: float, vol: float = 0.22) -> list[int]:
             for i in range(n)]
 
 
-def _web_melody_note(freq: float, dur: float, vol: float = 0.08) -> list[int]:
+def _web_melody_note(
+    freq: float,
+    dur: float,
+    vol: float = 0.08,
+    attack_frac: float = 0.1,
+    release_frac: float = 0.3,
+) -> list[int]:
     n = int(WEB_SR * dur)
-    attack = int(n * 0.1)
-    release = int(n * 0.3)
+    attack = max(1, int(n * attack_frac))
+    release = max(1, int(n * release_frac))
     TWO_PI = 2 * math.pi
     step = TWO_PI * freq / WEB_SR
     out: list[int] = []
@@ -1044,10 +1050,16 @@ def _noise_burst(duration: float, volume: float = 0.15) -> list[int]:
             for i in range(n)]
 
 
-def _melody_note(freq: float, duration: float, volume: float = 0.08) -> list[int]:
+def _melody_note(
+    freq: float,
+    duration: float,
+    volume: float = 0.08,
+    attack_frac: float = 0.08,
+    release_frac: float = 0.25,
+) -> list[int]:
     n = int(SAMPLE_RATE * duration)
-    attack = int(n * 0.08)
-    release = int(n * 0.25)
+    attack = max(1, int(n * attack_frac))
+    release = max(1, int(n * release_frac))
     out: list[int] = []
     for i in range(n):
         t = i / SAMPLE_RATE
@@ -1066,6 +1078,36 @@ def _melody_note(freq: float, duration: float, volume: float = 0.08) -> list[int
 
 def _stretch_notes(notes: list[tuple[float, float]], tempo_scale: float) -> list[tuple[float, float]]:
     return [(freq, dur * tempo_scale) for freq, dur in notes]
+
+
+# Calm C-major-pentatonic BGM (gentle, not busy). Shared by desktop + web.
+BGM_TEMPO_SCALE = 1.22
+BGM_MENU_VOL = 0.036
+BGM_GAME_VOL = 0.030
+_RAW_BGM_MENU = [
+    (392, 0.72), (440, 0.72), (392, 0.72), (329, 1.05),
+    (0, 0.55),
+    (329, 0.72), (392, 0.72), (440, 0.72), (392, 1.05),
+    (0, 0.55),
+    (293, 0.68), (329, 0.68), (392, 0.68), (440, 1.0),
+    (0, 0.5),
+    (440, 0.58), (392, 0.58), (329, 0.58), (261, 1.25),
+    (0, 0.65),
+    (329, 0.75), (392, 0.75), (440, 0.75), (392, 0.85), (329, 1.15),
+    (0, 0.75),
+]
+_RAW_BGM_GAME = [
+    (329, 0.58), (392, 0.58), (440, 0.58), (392, 0.42), (329, 0.72),
+    (0, 0.42),
+    (392, 0.52), (440, 0.52), (523, 0.48), (440, 0.48), (392, 0.78),
+    (0, 0.38),
+    (440, 0.48), (392, 0.48), (329, 0.48), (392, 0.82),
+    (0, 0.38),
+    (293, 0.52), (329, 0.52), (392, 0.52), (440, 0.70), (392, 0.92),
+    (0, 0.45),
+]
+_MENU_BGM_NOTES = _stretch_notes(_RAW_BGM_MENU, BGM_TEMPO_SCALE)
+_GAME_BGM_NOTES = _stretch_notes(_RAW_BGM_GAME, BGM_TEMPO_SCALE)
 
 
 def create_sounds() -> dict[str, pygame.mixer.Sound]:
@@ -1108,57 +1150,21 @@ def _build_bgm(notes: list[tuple[float, float]], vol: float) -> pygame.mixer.Sou
         if freq == 0:
             samples += [0] * int(SAMPLE_RATE * dur)
         else:
-            samples += _melody_note(freq, dur, volume=vol)
+            samples += _melody_note(
+                freq, dur, volume=vol, attack_frac=0.14, release_frac=0.42)
     return _make_sound(samples)
 
 
 def create_bgm_menu() -> pygame.mixer.Sound:
-    return _build_bgm(_stretch_notes([
-        (523, 0.45), (587, 0.45), (659, 0.45), (784, 0.9),
-        (659, 0.45), (587, 0.45), (523, 0.9),
-        (392, 0.45), (440, 0.45), (523, 0.45), (587, 0.9),
-        (523, 0.45), (440, 0.45), (392, 0.9),
-        (523, 0.45), (659, 0.45), (784, 0.45), (880, 0.9),
-        (784, 0.45), (659, 0.45), (523, 0.9),
-        (440, 0.45), (523, 0.45), (587, 0.45), (523, 0.9),
-        (0, 0.45),
-    ], 1.45), 0.06)
+    return _build_bgm(_MENU_BGM_NOTES, BGM_MENU_VOL)
 
 
 def create_bgm_game() -> pygame.mixer.Sound:
-    return _build_bgm(_stretch_notes([
-        (523, 0.3), (587, 0.3), (659, 0.3), (784, 0.3),
-        (880, 0.6), (784, 0.3), (659, 0.6),
-        (587, 0.3), (523, 0.3), (440, 0.3), (523, 0.3),
-        (587, 0.6), (0, 0.3),
-        (659, 0.3), (784, 0.3), (880, 0.3), (784, 0.3),
-        (659, 0.3), (587, 0.3), (523, 0.6),
-        (440, 0.3), (392, 0.3), (440, 0.3), (523, 0.3),
-        (587, 0.6), (523, 0.6), (0, 0.3),
-    ], 1.45), 0.05)
+    return _build_bgm(_GAME_BGM_NOTES, BGM_GAME_VOL)
 
 
-_WEB_MENU_NOTES = _stretch_notes([
-    (523, 0.45), (587, 0.45), (659, 0.45), (784, 0.9),
-    (659, 0.45), (587, 0.45), (523, 0.9),
-    (392, 0.45), (440, 0.45), (523, 0.45), (587, 0.9),
-    (523, 0.45), (440, 0.45), (392, 0.9),
-    (523, 0.45), (659, 0.45), (784, 0.45), (880, 0.9),
-    (784, 0.45), (659, 0.45), (523, 0.9),
-    (440, 0.45), (523, 0.45), (587, 0.45), (523, 0.9),
-    (0, 0.45),
-], 1.45)
-
-_WEB_GAME_NOTES = _stretch_notes([
-    (523, 0.3), (587, 0.3), (659, 0.3), (784, 0.3),
-    (880, 0.6), (784, 0.3), (659, 0.6),
-    (587, 0.3), (523, 0.3), (440, 0.3), (523, 0.3),
-    (587, 0.6), (0, 0.3),
-    (659, 0.3), (784, 0.3), (880, 0.3), (784, 0.3),
-    (659, 0.3), (587, 0.3), (523, 0.6),
-    (440, 0.3), (392, 0.3), (440, 0.3), (523, 0.3),
-    (587, 0.6), (523, 0.6), (0, 0.3),
-], 1.45)
+_WEB_MENU_NOTES = _MENU_BGM_NOTES
+_WEB_GAME_NOTES = _GAME_BGM_NOTES
 
 
 class _WebBgmBuilder:
@@ -1185,7 +1191,8 @@ class _WebBgmBuilder:
             if freq <= 0:
                 self._samples.extend([0] * int(WEB_SR * dur))
             else:
-                self._samples.extend(_web_melody_note(freq, dur, self._vol))
+                self._samples.extend(
+                    _web_melody_note(freq, dur, self._vol, 0.14, 0.42))
         return self.done
 
 # ---------------------------------------------------------------------------
@@ -1227,8 +1234,8 @@ async def main() -> None:
             sfx = _SilentDict()
             bgm_menu = _NoSound()
             bgm_game = _NoSound()
-            _bgm_menu_builder = _WebBgmBuilder(_WEB_MENU_NOTES, 0.06)
-            _bgm_game_builder = _WebBgmBuilder(_WEB_GAME_NOTES, 0.05)
+            _bgm_menu_builder = _WebBgmBuilder(_WEB_MENU_NOTES, BGM_MENU_VOL)
+            _bgm_game_builder = _WebBgmBuilder(_WEB_GAME_NOTES, BGM_GAME_VOL)
         else:
             sfx = create_sounds()
             bgm_menu = create_bgm_menu()
