@@ -1081,7 +1081,7 @@ def _stretch_notes(notes: list[tuple[float, float]], tempo_scale: float) -> list
 
 
 # Calm C-major-pentatonic BGM (gentle, not busy). Shared by desktop + web.
-BGM_TEMPO_SCALE = 1.22
+BGM_TEMPO_SCALE = 1.55
 BGM_MENU_VOL = 0.036
 BGM_GAME_VOL = 0.030
 _RAW_BGM_MENU = [
